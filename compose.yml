@@ -1,0 +1,78 @@
+services:
+
+  # ---- Traefik — reverse proxy ----
+  traefik:
+    image: traefik:v3.6
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=proxy"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/certs:/etc/traefik/certs:ro
+    networks:
+      - proxy
+
+  # ---- MySQL ----
+  mysql:
+    image: mysql:8.4
+    container_name: ${DATABASE_HOST}
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DATABASE_NAME}
+      MYSQL_USER: ${DATABASE_USER}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD}
+    ports:
+      - "127.0.0.1:${DATABASE_PORT}:${DATABASE_PORT}"
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+    networks:
+      - db
+
+  # ---- phpMyAdmin ----
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: ${DATABASE_HOST}
+      PMA_PORT: ${DATABASE_PORT}
+      UPLOAD_LIMIT: 512M
+      MEMORY_LIMIT: 1024M
+    depends_on:
+      - mysql
+    volumes:
+      - /sessions
+      - ${PHP_INI-./config/php/php.ini}:/usr/local/etc/php/conf.d/php-phpmyadmin.ini
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.phpmyadmin.rule=Host(`phpmyadmin.test`)"
+      - "traefik.http.routers.phpmyadmin.entrypoints=websecure"
+      - "traefik.http.routers.phpmyadmin.tls=true"
+      - "traefik.http.services.phpmyadmin.loadbalancer.server.port=80"
+    networks:
+      - db
+      - proxy
+
+networks:
+  proxy:
+    name: proxy
+    external: true
+  db:
+    name: db
+    external: true
