@@ -72,7 +72,5 @@ services:
 networks:
   proxy:
     name: proxy
-    external: true
   db:
     name: db
-    external: true

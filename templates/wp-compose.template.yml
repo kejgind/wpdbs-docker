@@ -1,0 +1,63 @@
+# Template: copy to each WP site directory as compose.yml
+# Replace SITE_NAME and SITE_DOMAIN with actual values
+#
+# Usage:
+#   cp /srv/http/_manager/wp-compose.template.yml /srv/http/SITE_DOMAIN/compose.yml
+#   sed -i 's/SITE_NAME/my-site/g; s/SITE_DOMAIN/my-site.test/g' /srv/http/SITE_DOMAIN/compose.yml
+#
+# Per-site setup:
+#   1. sudo chown -R 33:33 /srv/http/SITE_DOMAIN
+#   2. Edit wp-config.php: DB_HOST → 'mysql'
+#   3. Add to wp-config.php before "stop editing" line:
+#        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+#            $_SERVER['HTTPS'] = 'on';
+#        }
+
+services:
+  wordpress:
+    image: wordpress:6-php8.4-apache
+    container_name: wp-SITE_NAME
+    restart: unless-stopped
+    extra_hosts:
+      - "SITE_DOMAIN:host-gateway"
+    environment:
+      CURL_CA_BUNDLE: /usr/local/share/ca-certificates/mkcert-ca.crt
+    dns:
+      - 172.17.0.1
+    volumes:
+      - .:/var/www/html
+      - ${HOME}/.local/share/mkcert/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.SITE_NAME.rule=Host(`SITE_DOMAIN`)"
+      - "traefik.http.routers.SITE_NAME.entrypoints=websecure"
+      - "traefik.http.routers.SITE_NAME.tls=true"
+      - "traefik.http.services.SITE_NAME.loadbalancer.server.port=80"
+    networks:
+      - proxy
+      - db
+
+  wp-cli:
+    image: wordpress:cli-php8.4
+    container_name: wp-cli-SITE_NAME
+    user: "33:33"
+    extra_hosts:
+      - "SITE_DOMAIN:host-gateway"
+    environment:
+      WP_CLI_CACHE_DIR: /tmp/wp-cli-cache
+      CURL_CA_BUNDLE: /usr/local/share/ca-certificates/mkcert-ca.crt
+    dns:
+      - 172.17.0.1
+    volumes:
+      - .:/var/www/html
+      - ${HOME}/.local/share/mkcert/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro
+    networks:
+      - db
+    profiles:
+      - cli
+
+networks:
+  proxy:
+    external: true
+  db:
+    external: true
