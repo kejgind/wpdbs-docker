@@ -6,7 +6,7 @@
 #   sed -i 's/SITE_NAME/my-site/g; s/SITE_DOMAIN/my-site.test/g' /srv/http/SITE_DOMAIN/compose.yml
 #
 # Per-site setup:
-#   1. sudo chown -R 33:33 /srv/http/SITE_DOMAIN
+#   1. sudo chown -R 33:33 /srv/http/SITE_DOMAIN && sudo chmod -R g+rwX /srv/http/SITE_DOMAIN && sudo find /srv/http/SITE_DOMAIN -type d -exec chmod g+s {} +
 #   2. Edit wp-config.php: DB_HOST → 'mysql'
 #   3. Add to wp-config.php before "stop editing" line:
 #        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {

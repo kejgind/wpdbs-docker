@@ -63,8 +63,10 @@ cp /srv/http/_infra/templates/wp-compose.template.yml /srv/http/mysite.test/comp
 # 2. Replace placeholders
 sed -i 's/SITE_NAME/mysite/g; s/SITE_DOMAIN/mysite.test/g' /srv/http/mysite.test/compose.yml
 
-# 3. Set permissions
+# 3. Set permissions (all 3 steps required)
 sudo chown -R 33:33 /srv/http/mysite.test
+sudo chmod -R g+rwX /srv/http/mysite.test
+sudo find /srv/http/mysite.test -type d -exec chmod g+s {} +
 
 # 4. Edit wp-config.php
 #    - DB_HOST → 'mysql'
