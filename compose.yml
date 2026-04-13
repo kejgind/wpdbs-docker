@@ -83,6 +83,29 @@ services:
     networks:
       - proxy
 
+  # ---- Dozzle — Docker log viewer ----
+  dozzle:
+    image: amir20/dozzle:v10
+    container_name: dozzle
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - dozzle_data:/data
+    environment:
+      DOZZLE_ENABLE_ACTIONS: ${DOZZLE_ENABLE_ACTIONS:-false}
+      DOZZLE_ENABLE_SHELL: ${DOZZLE_ENABLE_SHELL:-false}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dozzle.rule=Host(`dozzle.test`)"
+      - "traefik.http.routers.dozzle.entrypoints=websecure"
+      - "traefik.http.routers.dozzle.tls=true"
+      - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
+    networks:
+      - proxy
+
+volumes:
+  dozzle_data:
+
 networks:
   proxy:
     name: proxy

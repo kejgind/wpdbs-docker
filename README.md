@@ -1,6 +1,6 @@
 # Local Dev Infrastructure
 
-Traefik reverse proxy + MySQL + phpMyAdmin + Mailpit for local WordPress/WooCommerce and other Docker-based projects.
+Traefik reverse proxy + MySQL + phpMyAdmin + Mailpit + Dozzle for local WordPress/WooCommerce and other Docker-based projects.
 
 ## Quick Start
 
@@ -19,10 +19,12 @@ Traefik :80/:443 (HTTPS, auto-discovery via Docker labels)
   ├── WP sites    → compose.yml per site in /srv/http/*.test/
   ├── Laravel/etc → compose.override.yml with Traefik labels
   ├── phpMyAdmin  → phpmyadmin.test
-  └── Mailpit     → mail.test (SMTP catch-all + web UI)
+  ├── Mailpit     → mail.test (SMTP catch-all + web UI)
+  └── Dozzle      → dozzle.test (Docker log viewer + container metrics)
 
 MySQL 8.4  → shared by all WP sites via "db" Docker network
 Mailpit    → catches all outgoing WP mail via mu-plugin on "proxy" network
+Dozzle     → real-time log streaming for all Docker containers via "proxy" network
 ```
 
 ## Services
@@ -32,6 +34,7 @@ Mailpit    → catches all outgoing WP mail via mu-plugin on "proxy" network
 | Traefik dashboard | http://127.0.0.1:8080 | loopback only |
 | phpMyAdmin | https://phpmyadmin.test | |
 | Mailpit | https://mail.test | SMTP on port 1025, web UI for caught emails |
+| Dozzle | https://dozzle.test | Docker log viewer, container metrics |
 | MySQL | 127.0.0.1:3306 | loopback only, for direct DB tools |
 
 ## DNS
@@ -180,6 +183,18 @@ Add this volume line to the wordpress service in the site's `compose.yml`:
 ```
 
 Restart the site container. The mu-plugin auto-activates (no wp-admin action needed).
+
+## Dozzle (Docker Logs)
+
+Real-time log viewer for all running Docker containers.
+
+- **Web UI**: https://dozzle.test — live log streaming, container metrics (CPU/mem/net)
+- **Actions/Shell**: disabled by default. Toggle in `.env`:
+  ```
+  DOZZLE_ENABLE_ACTIONS=true   # restart/stop/start containers from UI
+  DOZZLE_ENABLE_SHELL=true     # open terminal sessions from UI
+  ```
+  Then `docker compose up -d dozzle` to apply.
 
 ## Docker Networks
 
