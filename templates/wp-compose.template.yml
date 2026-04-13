@@ -28,6 +28,7 @@ services:
       - .:/var/www/html
       - ${HOME}/.local/share/mkcert/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro
       - /srv/http/_infra/config/php/wp-custom.ini:/usr/local/etc/php/conf.d/wp-custom.ini:ro
+      - /srv/http/_infra/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.SITE_NAME.rule=Host(`SITE_DOMAIN`)"

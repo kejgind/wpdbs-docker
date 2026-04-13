@@ -69,6 +69,20 @@ services:
       - db
       - proxy
 
+  # ---- Mailpit — local mail catcher ----
+  mailpit:
+    image: axllent/mailpit
+    container_name: mailpit
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mailpit.rule=Host(`mail.test`)"
+      - "traefik.http.routers.mailpit.entrypoints=websecure"
+      - "traefik.http.routers.mailpit.tls=true"
+      - "traefik.http.services.mailpit.loadbalancer.server.port=8025"
+    networks:
+      - proxy
+
 networks:
   proxy:
     name: proxy
