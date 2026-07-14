@@ -1,8 +1,10 @@
+name: local-infra
+
 services:
 
   # ---- Traefik — reverse proxy ----
   traefik:
-    image: traefik:v3.6
+    image: traefik:v3.7
     container_name: traefik
     restart: unless-stopped
     command:
