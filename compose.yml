@@ -48,7 +48,7 @@ services:
 
   # ---- phpMyAdmin ----
   phpmyadmin:
-    image: phpmyadmin
+    image: phpmyadmin:5.2
     container_name: phpmyadmin
     restart: unless-stopped
     environment:
@@ -73,7 +73,7 @@ services:
 
   # ---- Mailpit — local mail catcher ----
   mailpit:
-    image: axllent/mailpit
+    image: axllent/mailpit:v1
     container_name: mailpit
     restart: unless-stopped
     labels:
@@ -87,7 +87,7 @@ services:
 
   # ---- Dozzle — Docker log viewer ----
   dozzle:
-    image: amir20/dozzle:v10
+    image: amir20/dozzle:v11
     container_name: dozzle
     restart: unless-stopped
     volumes:
