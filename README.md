@@ -6,17 +6,28 @@ Traefik reverse proxy + MySQL + phpMyAdmin + Mailpit + Dozzle for local WordPres
 
 ```bash
 # After reboot — start infra first
-cd /srv/http/_infra && docker compose up -d
+cd $INFRA_DIR && docker compose up -d
 
 # Then start any site
-cd /srv/http/is-sklep.test && docker compose up -d
+cd ~/WebApps/is-sklep.test && docker compose up -d
+```
+
+## Paths
+
+Sites live in `~/WebApps/<domain>/`, this repo in `~/WebApps/env-manage/_infra`. Keep both under `/home`: on Omarchy only `/` is snapshotted by snapper, so site files and `mysql_data` under e.g. `/srv/http` would bloat system snapshots and get rolled back with them.
+
+Site compose files mount shared config from `INFRA_DIR`, which defaults to `~/WebApps/env-manage/_infra`. On a machine with a different layout, export it in your shell (the commands in this README use it too):
+
+```bash
+# ~/.bashrc
+export INFRA_DIR="$HOME/WebApps/env-manage/_infra"
 ```
 
 ## Architecture
 
 ```
 Traefik :80/:443 (HTTPS, auto-discovery via Docker labels)
-  ├── WP sites    → compose.yml per site in /srv/http/*.test/
+  ├── WP sites    → compose.yml per site in ~/WebApps/*.test/
   ├── Laravel/etc → compose.override.yml with Traefik labels
   ├── phpMyAdmin  → phpmyadmin.test
   ├── Mailpit     → mail.test (SMTP catch-all + web UI)
@@ -112,9 +123,9 @@ Certs are in `traefik/certs/` (gitignored). To regenerate or add a domain:
 
 ```bash
 cd /tmp && mkcert domain1.test domain2.test domain3.test ...
-cp *.pem /srv/http/_infra/traefik/certs/
+cp *.pem $INFRA_DIR/traefik/certs/
 # rename to _wildcard.test.pem / _wildcard.test-key.pem
-cd /srv/http/_infra && docker compose restart traefik
+cd $INFRA_DIR && docker compose restart traefik
 ```
 
 Browser CA trust:
@@ -126,15 +137,15 @@ Browser CA trust:
 
 ```bash
 # 1. Copy template
-cp /srv/http/_infra/templates/wp-compose.template.yml /srv/http/mysite.test/compose.yml
+cp $INFRA_DIR/templates/wp-compose.template.yml ~/WebApps/mysite.test/compose.yml
 
 # 2. Replace placeholders
-sed -i 's/SITE_NAME/mysite/g; s/SITE_DOMAIN/mysite.test/g' /srv/http/mysite.test/compose.yml
+sed -i 's/SITE_NAME/mysite/g; s/SITE_DOMAIN/mysite.test/g' ~/WebApps/mysite.test/compose.yml
 
 # 3. Set permissions (all 3 steps required)
-sudo chown -R 33:33 /srv/http/mysite.test
-sudo chmod -R g+rwX /srv/http/mysite.test
-sudo find /srv/http/mysite.test -type d -exec chmod g+s {} +
+sudo chown -R 33:33 ~/WebApps/mysite.test
+sudo chmod -R g+rwX ~/WebApps/mysite.test
+sudo find ~/WebApps/mysite.test -type d -exec chmod g+s {} +
 
 # 4. Edit wp-config.php
 #    - DB_HOST → 'mysql'
@@ -145,17 +156,17 @@ sudo find /srv/http/mysite.test -type d -exec chmod g+s {} +
 
 # 5. Regenerate cert with new domain added
 cd /tmp && mkcert mysite.test [plus all existing domains...]
-cp *.pem /srv/http/_infra/traefik/certs/
-cd /srv/http/_infra && docker compose restart traefik
+cp *.pem $INFRA_DIR/traefik/certs/
+cd $INFRA_DIR && docker compose restart traefik
 
 # 6. Start
-cd /srv/http/mysite.test && docker compose up -d
+cd ~/WebApps/mysite.test && docker compose up -d
 ```
 
 ## WP-CLI
 
 ```bash
-cd /srv/http/mysite.test
+cd ~/WebApps/mysite.test
 docker compose run --rm wp-cli plugin list
 docker compose run --rm wp-cli plugin update --all
 docker compose run --rm wp-cli search-replace 'old-domain' 'new-domain'
@@ -179,7 +190,7 @@ A mu-plugin at `config/wp/mu-plugins/mailpit-smtp.php` hooks `phpmailer_init` to
 Add this volume line to the wordpress service in the site's `compose.yml`:
 
 ```yaml
-- /srv/http/_infra/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
+- ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
 ```
 
 Restart the site container. The mu-plugin auto-activates (no wp-admin action needed).
@@ -195,6 +206,21 @@ Real-time log viewer for all running Docker containers.
   DOZZLE_ENABLE_SHELL=true     # open terminal sessions from UI
   ```
   Then `docker compose up -d dozzle` to apply.
+
+## Updates
+
+Image tags follow the major/minor line and pick up patches on every pull: `traefik:v3.7`, `mysql:8.4` (LTS), `phpmyadmin:5.2`, `axllent/mailpit:v1`, `amir20/dozzle:v11`. For a new major/minor, read the changelog, bump the tag in `compose.yml`, commit and push.
+
+```bash
+cd $INFRA_DIR
+git pull
+docker compose pull
+docker compose up -d
+docker image prune -f
+```
+
+- **MySQL**: don't jump LTS lines (8.4 → 9.x) without a full dump first — the data directory is upgraded in place and cannot be downgraded.
+- **WP sites** use `wordpress:php8.4-apache` / `wordpress:cli-php8.4` (tracks the PHP line, not the WP version). WP core lives in the site directory and is updated by WordPress itself; the image only provides PHP + Apache. Update a site with `docker compose pull && docker compose up -d` in its directory.
 
 ## Docker Networks
 

@@ -1,12 +1,15 @@
 # Template: copy to each WP site directory as compose.yml
 # Replace SITE_NAME and SITE_DOMAIN with actual values
 #
+# Shared files are mounted from INFRA_DIR (this _infra repo).
+# Default: ~/WebApps/env-manage/_infra — override by exporting INFRA_DIR in your shell.
+#
 # Usage:
-#   cp /srv/http/_manager/wp-compose.template.yml /srv/http/SITE_DOMAIN/compose.yml
-#   sed -i 's/SITE_NAME/my-site/g; s/SITE_DOMAIN/my-site.test/g' /srv/http/SITE_DOMAIN/compose.yml
+#   cp $INFRA_DIR/templates/wp-compose.template.yml ~/WebApps/SITE_DOMAIN/compose.yml
+#   sed -i 's/SITE_NAME/my-site/g; s/SITE_DOMAIN/my-site.test/g' ~/WebApps/SITE_DOMAIN/compose.yml
 #
 # Per-site setup:
-#   1. sudo chown -R 33:33 /srv/http/SITE_DOMAIN && sudo chmod -R g+rwX /srv/http/SITE_DOMAIN && sudo find /srv/http/SITE_DOMAIN -type d -exec chmod g+s {} +
+#   1. sudo chown -R 33:33 ~/WebApps/SITE_DOMAIN && sudo chmod -R g+rwX ~/WebApps/SITE_DOMAIN && sudo find ~/WebApps/SITE_DOMAIN -type d -exec chmod g+s {} +
 #   2. Edit wp-config.php: DB_HOST → 'mysql'
 #   3. Add to wp-config.php before "stop editing" line:
 #        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
@@ -15,7 +18,7 @@
 
 services:
   wordpress:
-    image: wordpress:6-php8.4-apache
+    image: wordpress:php8.4-apache
     container_name: wp-SITE_NAME
     restart: unless-stopped
     extra_hosts:
@@ -27,8 +30,9 @@ services:
     volumes:
       - .:/var/www/html
       - ${HOME}/.local/share/mkcert/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro
-      - /srv/http/_infra/config/php/wp-custom.ini:/usr/local/etc/php/conf.d/wp-custom.ini:ro
-      - /srv/http/_infra/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
+      - ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/php/wp-custom.ini:/usr/local/etc/php/conf.d/wp-custom.ini:ro
+      - ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/php/openssl-mkcert.ini:/usr/local/etc/php/conf.d/openssl-mkcert.ini:ro
+      - ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.SITE_NAME.rule=Host(`SITE_DOMAIN`)"
@@ -53,7 +57,8 @@ services:
     volumes:
       - .:/var/www/html
       - ${HOME}/.local/share/mkcert/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro
-      - /srv/http/_infra/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
+      - ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/php/openssl-mkcert.ini:/usr/local/etc/php/conf.d/openssl-mkcert.ini:ro
+      - ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
     networks:
       - proxy
       - db
