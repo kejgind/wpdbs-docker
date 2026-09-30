@@ -60,7 +60,6 @@ services:
       - mysql
     volumes:
       - /sessions
-      - ${PHP_INI-./config/php/php.ini}:/usr/local/etc/php/conf.d/php-phpmyadmin.ini
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.phpmyadmin.rule=Host(`phpmyadmin.test`)"
