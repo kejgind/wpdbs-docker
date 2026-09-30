@@ -1,11 +1,14 @@
 # Template: copy to each WP site directory as compose.yml
 # Replace SITE_NAME and SITE_DOMAIN with actual values
 #
-# Shared files are mounted from INFRA_DIR (this _infra repo).
-# Default: ~/WebApps/env-manage/_infra — override by exporting INFRA_DIR in your shell.
+# Paths are relative to the site directory, so the file works the same under
+# `sudo docker compose` (Omarchy default — sudo resets $HOME) and sudoless Docker.
+# Shared files come from INFRA_DIR, default ../env-manage/_infra
+# (layout: ~/WebApps/<site>/ next to ~/WebApps/env-manage/_infra/).
+# Other layout: sudo INFRA_DIR=/path/to/_infra docker compose up -d
 #
 # Usage:
-#   cp $INFRA_DIR/templates/wp-compose.template.yml ~/WebApps/SITE_DOMAIN/compose.yml
+#   cp ~/WebApps/env-manage/_infra/templates/wp-compose.template.yml ~/WebApps/SITE_DOMAIN/compose.yml
 #   sed -i 's/SITE_NAME/my-site/g; s/SITE_DOMAIN/my-site.test/g' ~/WebApps/SITE_DOMAIN/compose.yml
 #
 # Per-site setup:
@@ -29,10 +32,10 @@ services:
       - 172.17.0.1
     volumes:
       - .:/var/www/html
-      - ${HOME}/.local/share/mkcert/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro
-      - ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/php/wp-custom.ini:/usr/local/etc/php/conf.d/wp-custom.ini:ro
-      - ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/php/openssl-mkcert.ini:/usr/local/etc/php/conf.d/openssl-mkcert.ini:ro
-      - ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
+      - ${INFRA_DIR:-../env-manage/_infra}/traefik/certs/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro
+      - ${INFRA_DIR:-../env-manage/_infra}/config/php/wp-custom.ini:/usr/local/etc/php/conf.d/wp-custom.ini:ro
+      - ${INFRA_DIR:-../env-manage/_infra}/config/php/openssl-mkcert.ini:/usr/local/etc/php/conf.d/openssl-mkcert.ini:ro
+      - ${INFRA_DIR:-../env-manage/_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.SITE_NAME.rule=Host(`SITE_DOMAIN`)"
@@ -56,9 +59,9 @@ services:
       - 172.17.0.1
     volumes:
       - .:/var/www/html
-      - ${HOME}/.local/share/mkcert/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro
-      - ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/php/openssl-mkcert.ini:/usr/local/etc/php/conf.d/openssl-mkcert.ini:ro
-      - ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
+      - ${INFRA_DIR:-../env-manage/_infra}/traefik/certs/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro
+      - ${INFRA_DIR:-../env-manage/_infra}/config/php/openssl-mkcert.ini:/usr/local/etc/php/conf.d/openssl-mkcert.ini:ro
+      - ${INFRA_DIR:-../env-manage/_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
     networks:
       - proxy
       - db

@@ -6,22 +6,27 @@ Traefik reverse proxy + MySQL + phpMyAdmin + Mailpit + Dozzle for local WordPres
 
 ```bash
 # After reboot — start infra first
-cd $INFRA_DIR && docker compose up -d
+cd ~/WebApps/env-manage/_infra && sudo docker compose up -d
 
 # Then start any site
-cd ~/WebApps/is-sklep.test && docker compose up -d
+cd ~/WebApps/is-sklep.test && sudo docker compose up -d
 ```
 
 ## Paths
 
 Sites live in `~/WebApps/<domain>/`, this repo in `~/WebApps/env-manage/_infra`. Keep both under `/home`: on Omarchy only `/` is snapshotted by snapper, so site files and `mysql_data` under e.g. `/srv/http` would bloat system snapshots and get rolled back with them.
 
-Site compose files mount shared config from `INFRA_DIR`, which defaults to `~/WebApps/env-manage/_infra`. On a machine with a different layout, export it in your shell (the commands in this README use it too):
+Site compose files mount shared files (PHP ini, Mailpit mu-plugin, mkcert CA) via **relative** paths — `${INFRA_DIR:-../env-manage/_infra}` — so they don't depend on `$HOME`, which `sudo` resets to `/root`. With a different layout, pass the path explicitly:
 
 ```bash
-# ~/.bashrc
-export INFRA_DIR="$HOME/WebApps/env-manage/_infra"
+sudo INFRA_DIR=/srv/http/_infra docker compose up -d
 ```
+
+## Docker access (sudo)
+
+Omarchy deliberately keeps users out of the `docker` group (membership = passwordless root), so every `docker` command here runs with `sudo`. Opt-in alternative: *Setup → Security → Sudoless Docker* (reboot required); the compose files work the same either way.
+
+Editing site files owned by `33:33` (www-data in containers, `http` on Arch) requires the `http` group once: `sudo usermod -aG http $USER` (re-login).
 
 ## Architecture
 
@@ -123,9 +128,15 @@ Certs are in `traefik/certs/` (gitignored). To regenerate or add a domain:
 
 ```bash
 cd /tmp && mkcert domain1.test domain2.test domain3.test ...
-cp *.pem $INFRA_DIR/traefik/certs/
+cp *.pem ~/WebApps/env-manage/_infra/traefik/certs/
 # rename to _wildcard.test.pem / _wildcard.test-key.pem
-cd $INFRA_DIR && docker compose restart traefik
+cd ~/WebApps/env-manage/_infra && sudo docker compose restart traefik
+```
+
+WP containers trust the same CA via `traefik/certs/rootCA.pem` (mounted by the site template). Copy it once per machine — the **public** cert only, never `rootCA-key.pem`:
+
+```bash
+cp "$(mkcert -CAROOT)/rootCA.pem" ~/WebApps/env-manage/_infra/traefik/certs/
 ```
 
 Browser CA trust:
@@ -137,7 +148,7 @@ Browser CA trust:
 
 ```bash
 # 1. Copy template
-cp $INFRA_DIR/templates/wp-compose.template.yml ~/WebApps/mysite.test/compose.yml
+cp ~/WebApps/env-manage/_infra/templates/wp-compose.template.yml ~/WebApps/mysite.test/compose.yml
 
 # 2. Replace placeholders
 sed -i 's/SITE_NAME/mysite/g; s/SITE_DOMAIN/mysite.test/g' ~/WebApps/mysite.test/compose.yml
@@ -156,21 +167,21 @@ sudo find ~/WebApps/mysite.test -type d -exec chmod g+s {} +
 
 # 5. Regenerate cert with new domain added
 cd /tmp && mkcert mysite.test [plus all existing domains...]
-cp *.pem $INFRA_DIR/traefik/certs/
-cd $INFRA_DIR && docker compose restart traefik
+cp *.pem ~/WebApps/env-manage/_infra/traefik/certs/
+cd ~/WebApps/env-manage/_infra && sudo docker compose restart traefik
 
 # 6. Start
-cd ~/WebApps/mysite.test && docker compose up -d
+cd ~/WebApps/mysite.test && sudo docker compose up -d
 ```
 
 ## WP-CLI
 
 ```bash
 cd ~/WebApps/mysite.test
-docker compose run --rm wp-cli plugin list
-docker compose run --rm wp-cli plugin update --all
-docker compose run --rm wp-cli search-replace 'old-domain' 'new-domain'
-docker compose run --rm wp-cli cache flush
+sudo docker compose run --rm wp-cli plugin list
+sudo docker compose run --rm wp-cli plugin update --all
+sudo docker compose run --rm wp-cli search-replace 'old-domain' 'new-domain'
+sudo docker compose run --rm wp-cli cache flush
 ```
 
 ## Email (Mailpit)
@@ -190,7 +201,7 @@ A mu-plugin at `config/wp/mu-plugins/mailpit-smtp.php` hooks `phpmailer_init` to
 Add this volume line to the wordpress service in the site's `compose.yml`:
 
 ```yaml
-- ${INFRA_DIR:-${HOME}/WebApps/env-manage/_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
+- ${INFRA_DIR:-../env-manage/_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
 ```
 
 Restart the site container. The mu-plugin auto-activates (no wp-admin action needed).
@@ -205,22 +216,22 @@ Real-time log viewer for all running Docker containers.
   DOZZLE_ENABLE_ACTIONS=true   # restart/stop/start containers from UI
   DOZZLE_ENABLE_SHELL=true     # open terminal sessions from UI
   ```
-  Then `docker compose up -d dozzle` to apply.
+  Then `sudo docker compose up -d dozzle` to apply.
 
 ## Updates
 
 Image tags follow the major/minor line and pick up patches on every pull: `traefik:v3.7`, `mysql:8.4` (LTS), `phpmyadmin:5.2`, `axllent/mailpit:v1`, `amir20/dozzle:v11`. For a new major/minor, read the changelog, bump the tag in `compose.yml`, commit and push.
 
 ```bash
-cd $INFRA_DIR
+cd ~/WebApps/env-manage/_infra
 git pull
-docker compose pull
-docker compose up -d
-docker image prune -f
+sudo docker compose pull
+sudo docker compose up -d
+sudo docker image prune -f
 ```
 
 - **MySQL**: don't jump LTS lines (8.4 → 9.x) without a full dump first — the data directory is upgraded in place and cannot be downgraded.
-- **WP sites** use `wordpress:php8.4-apache` / `wordpress:cli-php8.4` (tracks the PHP line, not the WP version). WP core lives in the site directory and is updated by WordPress itself; the image only provides PHP + Apache. Update a site with `docker compose pull && docker compose up -d` in its directory.
+- **WP sites** use `wordpress:php8.4-apache` / `wordpress:cli-php8.4` (tracks the PHP line, not the WP version). WP core lives in the site directory and is updated by WordPress itself; the image only provides PHP + Apache. Update a site with `sudo docker compose pull && sudo docker compose up -d` in its directory.
 
 ## Docker Networks
 
