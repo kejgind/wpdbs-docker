@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Bootstrap a fresh WordPress + WooCommerce store on local_infra.
-# Usage: new-store.sh <domain.test> [--locale pl_PL] [--country PL] [--currency PLN]
+# Usage: new-store.sh <domain.test> [--group Client] [--locale pl_PL] [--country PL] [--currency PLN]
 #                     [--plugins slug1,slug2] [--acf /path/acf-pro.zip] [--reset-db]
+# --group puts the site in ~/WebApps/<Client>/<domain> (client/project folder, created if missing).
 # Runs as your user (Sudoless Docker); never needs sudo except the /etc/hosts line it prints.
 set -euo pipefail
 
@@ -10,9 +11,10 @@ WEBAPPS="${WEBAPPS:-$(cd "$INFRA/../.." && pwd)}"
 export INFRA_DIR="$INFRA"   # compose mounts; same files as the template's relative default
 
 DOMAIN="${1:-}"; shift || true
-LOCALE=pl_PL COUNTRY=PL CURRENCY=PLN PLUGINS="" ACF="" RESET_DB=0
+GROUP="" LOCALE=pl_PL COUNTRY=PL CURRENCY=PLN PLUGINS="" ACF="" RESET_DB=0
 while [ $# -gt 0 ]; do
   case "$1" in
+    --group) GROUP=$2; shift 2 ;;
     --locale) LOCALE=$2; shift 2 ;;
     --country) COUNTRY=$2; shift 2 ;;
     --currency) CURRENCY=$2; shift 2 ;;
@@ -27,9 +29,10 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 step() { echo; echo "==> $*"; }
 
 [[ "$DOMAIN" =~ ^[a-z0-9-]+\.test$ ]] || die "domain must look like name.test (got '$DOMAIN')"
+[[ -z "$GROUP" || "$GROUP" =~ ^[A-Za-z0-9._-]+$ ]] || die "group must be a single folder name (got '$GROUP')"
 NAME=${DOMAIN%.test}
 DB=${NAME//-/_}
-SITE="$WEBAPPS/$DOMAIN"
+SITE="$WEBAPPS/${GROUP:+$GROUP/}$DOMAIN"
 CERT="$INFRA/traefik/certs/_wildcard.test.pem"
 KEY="$INFRA/traefik/certs/_wildcard.test-key.pem"
 DB_CONTAINER=$(grep '^DATABASE_HOST=' "$INFRA/.env" | cut -d= -f2-)
@@ -56,7 +59,10 @@ step "Site directory + compose.yml from template"
 # Pre-create the mu-plugin mount point as us — Docker would create it (and wp-content) as root.
 mkdir -p "$SITE/wp-content/mu-plugins"
 touch "$SITE/wp-content/mu-plugins/mailpit-smtp.php"
-sed "s/SITE_NAME/$NAME/g; s/SITE_DOMAIN/$DOMAIN/g" "$INFRA/templates/wp-compose.template.yml" > "$SITE/compose.yml"
+# The template's relative infra path assumes ~/WebApps/<domain>; recompute it for groups.
+REL=$(realpath -m --relative-to="$SITE" "$INFRA")
+sed "s/SITE_NAME/$NAME/g; s/SITE_DOMAIN/$DOMAIN/g; s|:-\.\./env-manage/local_infra}|:-$REL}|g" \
+  "$INFRA/templates/wp-compose.template.yml" > "$SITE/compose.yml"
 
 step "TLS certificate: add $DOMAIN"
 mapfile -t SANS < <(openssl x509 -in "$CERT" -noout -ext subjectAltName | grep -o 'DNS:[^,]*' | cut -d: -f2)

@@ -18,13 +18,15 @@ Nothing starts on its own: every service (infra and the site template) uses `res
 
 ## Paths
 
-Sites live in `~/WebApps/<domain>/`, this repo in `~/WebApps/env-manage/local_infra`. Keep both under `/home`: on Omarchy only `/` is snapshotted by snapper, so site files and `mysql_data` under e.g. `/srv/http` would bloat system snapshots and get rolled back with them.
+Sites live in `~/WebApps/<domain>/` — or grouped per client/project in `~/WebApps/<Client>/<domain>/` — and this repo in `~/WebApps/env-manage/local_infra`. Keep both under `/home`: on Omarchy only `/` is snapshotted by snapper, so site files and `mysql_data` under e.g. `/srv/http` would bloat system snapshots and get rolled back with them.
 
 Site compose files mount shared files (PHP ini, Mailpit mu-plugin, mkcert CA) via **relative** paths — `${INFRA_DIR:-../env-manage/local_infra}` — so they don't depend on `$HOME`, which `sudo` resets to `/root`. With a different layout, pass the path explicitly:
 
 ```bash
 sudo INFRA_DIR=/srv/http/_infra docker compose up -d
 ```
+
+For a grouped site the default must go one level up: `${INFRA_DIR:-../../env-manage/local_infra}` (`wp-new-store --group` writes it for you; when copying the template by hand, `sed -i 's|:-\.\./env-manage|:-../../env-manage|g' compose.yml`).
 
 ## Docker access (sudo)
 

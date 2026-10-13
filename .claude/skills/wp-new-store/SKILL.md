@@ -3,16 +3,17 @@ name: wp-new-store
 description: Bootstrap a fresh WordPress + WooCommerce store on local_infra (new `.test` site from scratch). Use when the user wants a new local WP/WC shop.
 ---
 
-Creates `~/WebApps/<domain>/` from the infra template and fully sets up WordPress + WooCommerce via wp-cli. All mechanics live in [`scripts/new-store.sh`](scripts/new-store.sh); it fails fast with a clear `ERROR:` and never needs sudo.
+Creates `~/WebApps/[<client>/]<domain>/` from the infra template and fully sets up WordPress + WooCommerce via wp-cli. All mechanics live in [`scripts/new-store.sh`](scripts/new-store.sh); it fails fast with a clear `ERROR:` and never needs sudo.
 
 ## 1. Gather inputs
 
 Ask in one **AskUserQuestion** batch (skip what the user already gave, e.g. `/wp-new-store mysite.test`):
 
-1. **Domain** — `name.test` (lowercase, digits, `-`). Derived: site dir `~/WebApps/<domain>`, DB `name` with `-` → `_`.
-2. **Locale** — default `pl_PL`. For another locale also ask **country** and **currency** (defaults are `PL` / `PLN`).
-3. **ACF PRO** — no, or the path to the zip.
-4. **Extra plugins** — wp.org slugs, comma-separated, or none.
+1. **Domain** — `name.test` (lowercase, digits, `-`). Derived: DB `name` with `-` → `_`.
+2. **Client/project folder** — none (site in `~/WebApps/<domain>`), or one folder name (letters, digits, `.`, `_`, `-`; e.g. `Imperium` → `~/WebApps/Imperium/<domain>`). Offer existing folders from `~/WebApps` that aren't sites themselves.
+3. **Locale** — default `pl_PL`. For another locale also ask **country** and **currency** (defaults are `PL` / `PLN`).
+4. **ACF PRO** — no, or the path to the zip.
+5. **Extra plugins** — wp.org slugs, comma-separated, or none.
 
 State the derived values back and get a yes before running anything.
 
@@ -21,7 +22,7 @@ State the derived values back and get a yes before running anything.
 From the repo root (`~/WebApps/env-manage/local_infra`):
 
 ```bash
-.claude/skills/wp-new-store/scripts/new-store.sh <domain> [--locale xx_XX --country XX --currency XXX] [--acf <zip>] [--plugins a,b]
+.claude/skills/wp-new-store/scripts/new-store.sh <domain> [--group <client>] [--locale xx_XX --country XX --currency XXX] [--acf <zip>] [--plugins a,b]
 ```
 
 Allow several minutes (downloads core, WooCommerce, translations). Done when it prints `DONE https://<domain>/wp-admin/` with `wp-login.php via Traefik: 200`, loopback `200` and `wp_mail → Mailpit: OK`.
@@ -29,6 +30,7 @@ Allow several minutes (downloads core, WooCommerce, translations). Done when it 
 On `ERROR:` read the message and act:
 - **database already exists** — ask the user whether to drop it; rerun with `--reset-db` only on a yes.
 - **not running / rootCA.pem missing / docker not reachable** — tell the user what to start or fix (see `README.md`), then rerun.
+- **group must be a single folder name** — ask for a name without spaces or `/`.
 - **exists and is not empty** — ask the user; never delete a site directory yourself.
 
 ## 3. Hand off
