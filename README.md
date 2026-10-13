@@ -30,7 +30,14 @@ sudo INFRA_DIR=/srv/http/_infra docker compose up -d
 
 Omarchy deliberately keeps users out of the `docker` group (membership = passwordless root), so every `docker` command here runs with `sudo`. Opt-in alternative: *Setup → Security → Sudoless Docker* (reboot required); the compose files work the same either way.
 
-Editing site files owned by `33:33` (www-data in containers, `http` on Arch) requires the `http` group once: `sudo usermod -aG http $USER` (re-login).
+## Site file ownership (UID 1000)
+
+Site files stay owned by you — no `chown 33:33`, no `http` group, no setgid. The template builds `local/wordpress:php8.4-apache-uid1000`: the official image with `www-data` renumbered to UID/GID 1000 (your host user, `id -u`), so Apache workers/PHP run as you inside the container, and wp-cli runs with `user: "1000:1000"`. WordPress sees PHP as the file owner and writes plugins/updates/uploads directly, and everything it writes is yours on the host. Apache's master process stays root only to bind port 80.
+
+- **Don't** use `APACHE_RUN_USER=#1000` instead: the image has no passwd entry for 1000, Apache can't drop privileges (`AH02155`) and PHP keeps running as **root**.
+- Trade-off: a container escape would land as your user rather than the unprivileged `http`. Acceptable for local dev — membership in the `docker` group (Sudoless Docker) is already root-equivalent.
+- Sites under `~/WebApps` (not `/srv/http`) — see [Paths](#paths).
+- Migrating a site that was `chown`ed to `33:33`: `sudo chown -R $USER: ~/WebApps/<site>` once.
 
 ## Architecture
 
@@ -155,27 +162,22 @@ cp ~/WebApps/env-manage/local_infra/templates/wp-compose.template.yml ~/WebApps/
 # 2. Replace placeholders
 sed -i 's/SITE_NAME/mysite/g; s/SITE_DOMAIN/mysite.test/g' ~/WebApps/mysite.test/compose.yml
 
-# 3. Set permissions (all 3 steps required)
-sudo chown -R 33:33 ~/WebApps/mysite.test
-sudo chmod -R g+rwX ~/WebApps/mysite.test
-sudo find ~/WebApps/mysite.test -type d -exec chmod g+s {} +
-
-# 4. Edit wp-config.php
+# 3. Edit wp-config.php
 #    - DB_HOST → 'mysql'
 #    - Add before "stop editing" line:
 #        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
 #            $_SERVER['HTTPS'] = 'on';
 #        }
 
-# 5. Regenerate cert with new domain added
+# 4. Regenerate cert with new domain added
 cd /tmp && mkcert mysite.test [plus all existing domains...]
 cp *.pem ~/WebApps/env-manage/local_infra/traefik/certs/
 cd ~/WebApps/env-manage/local_infra && sudo docker compose restart traefik
 
-# 6. Resolve the domain on the host
+# 5. Resolve the domain on the host
 echo '127.0.0.1 mysite.test' | sudo tee -a /etc/hosts
 
-# 7. Start
+# 6. Start (first run builds the UID 1000 image)
 cd ~/WebApps/mysite.test && sudo docker compose up -d
 ```
 
@@ -236,7 +238,10 @@ sudo docker image prune -f
 ```
 
 - **MySQL**: don't jump LTS lines (8.4 → 9.x) without a full dump first — the data directory is upgraded in place and cannot be downgraded.
-- **WP sites** use `wordpress:php8.4-apache` / `wordpress:cli-php8.4` (tracks the PHP line, not the WP version). WP core lives in the site directory and is updated by WordPress itself; the image only provides PHP + Apache. Update a site with `sudo docker compose pull && sudo docker compose up -d` in its directory.
+- **WP sites** use `local/wordpress:php8.4-apache-uid1000` (built locally from `wordpress:php8.4-apache`) and `wordpress:cli-php8.4` — tracks the PHP line, not the WP version. WP core lives in the site directory and is updated by WordPress itself; the image only provides PHP + Apache. The built image isn't pulled, so update it with `--pull`, in any one site directory (all sites share the tag), then recreate each site:
+  ```bash
+  docker compose build --pull wordpress && docker compose up -d
+  ```
 
 ## Docker Networks
 

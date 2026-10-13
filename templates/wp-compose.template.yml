@@ -12,13 +12,17 @@
 #   sed -i 's/SITE_NAME/my-site/g; s/SITE_DOMAIN/my-site.test/g' ~/WebApps/SITE_DOMAIN/compose.yml
 #
 # Per-site setup:
-#   1. sudo chown -R 33:33 ~/WebApps/SITE_DOMAIN && sudo chmod -R g+rwX ~/WebApps/SITE_DOMAIN && sudo find ~/WebApps/SITE_DOMAIN -type d -exec chmod g+s {} +
-#   2. Edit wp-config.php: DB_HOST → 'mysql'
-#   3. Add to wp-config.php before "stop editing" line:
+#   1. Edit wp-config.php: DB_HOST → 'mysql'
+#   2. Add to wp-config.php before "stop editing" line:
 #        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
 #            $_SERVER['HTTPS'] = 'on';
 #        }
-#   4. echo '127.0.0.1 SITE_DOMAIN' | sudo tee -a /etc/hosts
+#   3. echo '127.0.0.1 SITE_DOMAIN' | sudo tee -a /etc/hosts
+#
+# File ownership: no chown. Apache/PHP and wp-cli run as UID/GID 1000 (your host user,
+# check `id -u`), so site files stay yours and WordPress writes them directly.
+# The image renumbers www-data to 1000; APACHE_RUN_USER=#1000 is NOT an alternative —
+# without a passwd entry Apache can't drop privileges and PHP keeps running as root.
 #
 # Container DNS: no `dns:` here — Omarchy's /etc/docker/daemon.json defaults every
 # container to 172.17.0.1 (systemd-resolved on docker0). extra_hosts maps the site's
@@ -26,7 +30,11 @@
 
 services:
   wordpress:
-    image: wordpress:php8.4-apache
+    build:
+      dockerfile_inline: |
+        FROM wordpress:php8.4-apache
+        RUN groupmod -o -g 1000 www-data && usermod -o -u 1000 -g 1000 www-data
+    image: local/wordpress:php8.4-apache-uid1000
     container_name: wp-SITE_NAME
     restart: "no"
     extra_hosts:
@@ -52,7 +60,7 @@ services:
   wp-cli:
     image: wordpress:cli-php8.4
     container_name: wp-cli-SITE_NAME
-    user: "33:33"
+    user: "1000:1000"
     extra_hosts:
       - "SITE_DOMAIN:host-gateway"
     environment:
