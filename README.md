@@ -101,7 +101,7 @@ Check that a site container reaches its own domain through Traefik (WP loopback:
 cd ~/WebApps/mysite.test && sudo docker compose exec wordpress curl -sI https://mysite.test | head -1   # HTTP/... 200/301/302
 ```
 
-If it hangs or is refused, ufw is dropping container → host traffic on `:443` (only DNS is allowed by default). Mirror Omarchy's DNS rule for HTTPS:
+Verified on Omarchy (ufw + ufw-docker, Docker 29): containers reach `172.17.0.1:80/443` through `host-gateway` with no extra rules, whether they share the `proxy` network with Traefik or not, and the LAN IP doesn't answer on `:443`. If a future ufw/Omarchy change breaks it (the check hangs or is refused), mirror Omarchy's DNS rule for HTTPS:
 
 ```bash
 sudo ufw allow in proto tcp from 172.16.0.0/12 to 172.17.0.1 port 443 comment 'allow-docker-traefik'
@@ -114,6 +114,14 @@ One-time setup (`certutil` comes from `nss`, already installed on Omarchy):
 ```bash
 sudo pacman -S mkcert
 mkcert -install        # system trust store + Chromium (Omarchy default browser)
+```
+
+**Before the first site starts**, `traefik/certs/rootCA.pem` must exist (see below). Docker creates a missing bind-mount source as an empty root-owned **directory**, which then blocks copying the real file there. Same for any absolute path in an old site `compose.yml` (`/srv/http/_infra/...`, `${HOME}/.local/share/mkcert/rootCA.pem`) — regenerate such files from the template instead of starting them.
+
+Moving from another machine: either copy its CA (`rootCA.pem` + `rootCA-key.pem` from `mkcert -CAROOT` there into `mkcert -CAROOT` here, then `mkcert -install`) so existing certs stay valid, or start a fresh CA here and regenerate the Traefik cert. Check which CA signed the current cert:
+
+```bash
+openssl x509 -in traefik/certs/_wildcard.test.pem -noout -issuer -ext subjectAltName
 ```
 
 Certs are in `traefik/certs/` (gitignored). To regenerate or add a domain:
