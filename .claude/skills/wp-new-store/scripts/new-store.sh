@@ -135,7 +135,8 @@ echo "wp-login.php via Traefik: $code"
 echo -n "loopback from container: "
 (cd "$SITE" && docker compose exec -T wordpress curl -s -o /dev/null -w '%{http_code}\n' "https://$DOMAIN/wp-login.php")
 echo -n "wp_mail → Mailpit: "
-(cd "$SITE" && docker compose exec -T wordpress php -r "require '/var/www/html/wp-load.php'; echo wp_mail('test@example.com', 'Test from $DOMAIN', 'Mailpit works') ? 'OK' : 'FAIL';"); echo
+# As 1000, like Apache — exec defaults to root and could leave root-owned files (debug.log).
+(cd "$SITE" && docker compose exec -T -u 1000:1000 wordpress php -r "require '/var/www/html/wp-load.php'; echo wp_mail('test@example.com', 'Test from $DOMAIN', 'Mailpit works') ? 'OK' : 'FAIL';"); echo
 echo -n "WC pages: "; wp post list --post_type=page --field=post_name | tr '\n' ' '; echo
 echo -n "plugins: "; wp plugin list --status=active --field=name | tr '\n' ' '; echo
 
