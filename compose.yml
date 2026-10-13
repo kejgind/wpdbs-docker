@@ -6,7 +6,7 @@ services:
   traefik:
     image: traefik:v3.7
     container_name: traefik
-    restart: unless-stopped
+    restart: "no"
     command:
       - "--api.dashboard=true"
       - "--api.insecure=true"
@@ -38,7 +38,7 @@ services:
   mysql:
     image: mysql:8.4
     container_name: ${DATABASE_HOST}
-    restart: unless-stopped
+    restart: "no"
     environment:
       MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DATABASE_NAME}
@@ -55,7 +55,7 @@ services:
   phpmyadmin:
     image: phpmyadmin:5.2
     container_name: phpmyadmin
-    restart: unless-stopped
+    restart: "no"
     environment:
       PMA_HOST: ${DATABASE_HOST}
       PMA_PORT: ${DATABASE_PORT}
@@ -79,7 +79,7 @@ services:
   mailpit:
     image: axllent/mailpit:v1
     container_name: mailpit
-    restart: unless-stopped
+    restart: "no"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.mailpit.rule=Host(`mail.test`)"
@@ -93,7 +93,7 @@ services:
   dozzle:
     image: amir20/dozzle:v11
     container_name: dozzle
-    restart: unless-stopped
+    restart: "no"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - dozzle_data:/data

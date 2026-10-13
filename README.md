@@ -14,6 +14,8 @@ cd ~/WebApps/env-manage/local_infra && sudo docker compose up -d
 cd ~/WebApps/is-sklep.test && sudo docker compose up -d
 ```
 
+Nothing starts on its own: every service (infra and the site template) uses `restart: "no"`. On Omarchy Docker is socket-activated (`docker.socket`), so `unless-stopped` containers would come back on the first `docker` command after a reboot. Stop everything with `docker compose down` (or `stop`) in each directory.
+
 ## Paths
 
 Sites live in `~/WebApps/<domain>/`, this repo in `~/WebApps/env-manage/local_infra`. Keep both under `/home`: on Omarchy only `/` is snapshotted by snapper, so site files and `mysql_data` under e.g. `/srv/http` would bloat system snapshots and get rolled back with them.

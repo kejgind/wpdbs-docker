@@ -28,7 +28,7 @@ services:
   wordpress:
     image: wordpress:php8.4-apache
     container_name: wp-SITE_NAME
-    restart: unless-stopped
+    restart: "no"
     extra_hosts:
       - "SITE_DOMAIN:host-gateway"
     environment:
