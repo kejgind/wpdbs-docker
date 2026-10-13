@@ -6,7 +6,7 @@ Traefik reverse proxy + MySQL + phpMyAdmin + Mailpit + Dozzle for local WordPres
 
 ```bash
 # After reboot — start infra first
-cd ~/WebApps/env-manage/_infra && sudo docker compose up -d
+cd ~/WebApps/env-manage/local_infra && sudo docker compose up -d
 
 # Then start any site
 cd ~/WebApps/is-sklep.test && sudo docker compose up -d
@@ -14,9 +14,9 @@ cd ~/WebApps/is-sklep.test && sudo docker compose up -d
 
 ## Paths
 
-Sites live in `~/WebApps/<domain>/`, this repo in `~/WebApps/env-manage/_infra`. Keep both under `/home`: on Omarchy only `/` is snapshotted by snapper, so site files and `mysql_data` under e.g. `/srv/http` would bloat system snapshots and get rolled back with them.
+Sites live in `~/WebApps/<domain>/`, this repo in `~/WebApps/env-manage/local_infra`. Keep both under `/home`: on Omarchy only `/` is snapshotted by snapper, so site files and `mysql_data` under e.g. `/srv/http` would bloat system snapshots and get rolled back with them.
 
-Site compose files mount shared files (PHP ini, Mailpit mu-plugin, mkcert CA) via **relative** paths — `${INFRA_DIR:-../env-manage/_infra}` — so they don't depend on `$HOME`, which `sudo` resets to `/root`. With a different layout, pass the path explicitly:
+Site compose files mount shared files (PHP ini, Mailpit mu-plugin, mkcert CA) via **relative** paths — `${INFRA_DIR:-../env-manage/local_infra}` — so they don't depend on `$HOME`, which `sudo` resets to `/root`. With a different layout, pass the path explicitly:
 
 ```bash
 sudo INFRA_DIR=/srv/http/_infra docker compose up -d
@@ -128,15 +128,15 @@ Certs are in `traefik/certs/` (gitignored). To regenerate or add a domain:
 
 ```bash
 cd /tmp && mkcert domain1.test domain2.test domain3.test ...
-cp *.pem ~/WebApps/env-manage/_infra/traefik/certs/
+cp *.pem ~/WebApps/env-manage/local_infra/traefik/certs/
 # rename to _wildcard.test.pem / _wildcard.test-key.pem
-cd ~/WebApps/env-manage/_infra && sudo docker compose restart traefik
+cd ~/WebApps/env-manage/local_infra && sudo docker compose restart traefik
 ```
 
 WP containers trust the same CA via `traefik/certs/rootCA.pem` (mounted by the site template). Copy it once per machine — the **public** cert only, never `rootCA-key.pem`:
 
 ```bash
-cp "$(mkcert -CAROOT)/rootCA.pem" ~/WebApps/env-manage/_infra/traefik/certs/
+cp "$(mkcert -CAROOT)/rootCA.pem" ~/WebApps/env-manage/local_infra/traefik/certs/
 ```
 
 Browser CA trust:
@@ -148,7 +148,7 @@ Browser CA trust:
 
 ```bash
 # 1. Copy template
-cp ~/WebApps/env-manage/_infra/templates/wp-compose.template.yml ~/WebApps/mysite.test/compose.yml
+cp ~/WebApps/env-manage/local_infra/templates/wp-compose.template.yml ~/WebApps/mysite.test/compose.yml
 
 # 2. Replace placeholders
 sed -i 's/SITE_NAME/mysite/g; s/SITE_DOMAIN/mysite.test/g' ~/WebApps/mysite.test/compose.yml
@@ -167,8 +167,8 @@ sudo find ~/WebApps/mysite.test -type d -exec chmod g+s {} +
 
 # 5. Regenerate cert with new domain added
 cd /tmp && mkcert mysite.test [plus all existing domains...]
-cp *.pem ~/WebApps/env-manage/_infra/traefik/certs/
-cd ~/WebApps/env-manage/_infra && sudo docker compose restart traefik
+cp *.pem ~/WebApps/env-manage/local_infra/traefik/certs/
+cd ~/WebApps/env-manage/local_infra && sudo docker compose restart traefik
 
 # 6. Start
 cd ~/WebApps/mysite.test && sudo docker compose up -d
@@ -201,7 +201,7 @@ A mu-plugin at `config/wp/mu-plugins/mailpit-smtp.php` hooks `phpmailer_init` to
 Add this volume line to the wordpress service in the site's `compose.yml`:
 
 ```yaml
-- ${INFRA_DIR:-../env-manage/_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
+- ${INFRA_DIR:-../env-manage/local_infra}/config/wp/mu-plugins/mailpit-smtp.php:/var/www/html/wp-content/mu-plugins/mailpit-smtp.php:ro
 ```
 
 Restart the site container. The mu-plugin auto-activates (no wp-admin action needed).
@@ -223,7 +223,7 @@ Real-time log viewer for all running Docker containers.
 Image tags follow the major/minor line and pick up patches on every pull: `traefik:v3.7`, `mysql:8.4` (LTS), `phpmyadmin:5.2`, `axllent/mailpit:v1`, `amir20/dozzle:v11`. For a new major/minor, read the changelog, bump the tag in `compose.yml`, commit and push.
 
 ```bash
-cd ~/WebApps/env-manage/_infra
+cd ~/WebApps/env-manage/local_infra
 git pull
 sudo docker compose pull
 sudo docker compose up -d
