@@ -18,6 +18,11 @@
 #        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
 #            $_SERVER['HTTPS'] = 'on';
 #        }
+#   4. echo '127.0.0.1 SITE_DOMAIN' | sudo tee -a /etc/hosts
+#
+# Container DNS: no `dns:` here — Omarchy's /etc/docker/daemon.json defaults every
+# container to 172.17.0.1 (systemd-resolved on docker0). extra_hosts maps the site's
+# own domain to Traefik on the host, so WP loopback requests (wp-cron, Site Health) work.
 
 services:
   wordpress:
@@ -28,8 +33,6 @@ services:
       - "SITE_DOMAIN:host-gateway"
     environment:
       CURL_CA_BUNDLE: /usr/local/share/ca-certificates/mkcert-ca.crt
-    dns:
-      - 172.17.0.1
     volumes:
       - .:/var/www/html
       - ${INFRA_DIR:-../env-manage/local_infra}/traefik/certs/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro
@@ -55,8 +58,6 @@ services:
     environment:
       WP_CLI_CACHE_DIR: /tmp/wp-cli-cache
       CURL_CA_BUNDLE: /usr/local/share/ca-certificates/mkcert-ca.crt
-    dns:
-      - 172.17.0.1
     volumes:
       - .:/var/www/html
       - ${INFRA_DIR:-../env-manage/local_infra}/traefik/certs/rootCA.pem:/usr/local/share/ca-certificates/mkcert-ca.crt:ro

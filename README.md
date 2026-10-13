@@ -2,6 +2,8 @@
 
 Traefik reverse proxy + MySQL + phpMyAdmin + Mailpit + Dozzle for local WordPress/WooCommerce and other Docker-based projects.
 
+This branch targets **Omarchy** and builds on what it already configures: `sudo` Docker, `/etc/docker/daemon.json` (container DNS `172.17.0.1`, fixed `bip`), systemd-resolved listening on the Docker bridge, and ufw + ufw-docker. `.test` domains are only for Docker apps; everything else (Astro, Laravel dev servers, …) runs on `localhost:<port>`.
+
 ## Quick Start
 
 ```bash
@@ -55,74 +57,64 @@ Dozzle     → real-time log streaming for all Docker containers via "proxy" net
 
 ## DNS
 
-All `*.test` domains resolve to `127.0.0.1`. No `/etc/hosts` entries needed.
+`*.test` names resolve through `/etc/hosts` — one line per domain, nothing else to configure. systemd-resolved (Omarchy default, `/etc/resolv.conf` → stub `127.0.0.53`) answers from `/etc/hosts` before routing a query anywhere, so it works the same with ProtonVPN or NetBird connected and doesn't touch LAN names (`*.local` goes through avahi/mDNS). Traefik can't help here: it only routes requests that already reached `127.0.0.1` by `Host` header.
 
-```
-┌──────────────┐
-│ Applications │  (browser, curl, Docker containers)
-└──────┬───────┘
-       │
-       ▼
-┌──────────────────┐     *.test      ┌──────────────┐
-│ systemd-resolved │ ───────────────▶│   dnsmasq    │
-│   127.0.0.53     │                 │  127.0.0.1   │
-└──────┬───────────┘                 │  172.17.0.1  │
-       │ everything else             └──────────────┘
-       ▼
-┌──────────────┐
-│   upstream   │  (router 192.168.1.1 via NM/DHCP)
-└──────────────┘
+Infra domains, once per machine:
+
+```bash
+echo '127.0.0.1 phpmyadmin.test mail.test dozzle.test' | sudo tee -a /etc/hosts
 ```
 
-### Config files
-
-| File | Purpose |
-|------|---------|
-| `/etc/dnsmasq.conf` | `address=/test/127.0.0.1`, listens on 127.0.0.1 + 172.17.0.1 (Docker bridge) |
-| `/etc/systemd/resolved.conf.d/local-dev.conf` | Routes `.test` queries to dnsmasq (`DNS=127.0.0.1`, `Domains=~test`) |
-| `/etc/NetworkManager/conf.d/dns.conf` | `dns=systemd-resolved` — NM pushes DHCP DNS into resolved |
-| `/etc/resolv.conf` | Symlink to resolved stub (`127.0.0.53`) — do not edit |
+Each new site adds its own line (see [Adding a New WP Site](#adding-a-new-wp-site)). Non-Docker apps (Astro, Laravel via `artisan serve`, …) stay on `localhost:<port>` and need nothing.
 
 ### Docker container DNS
 
-WP containers use `dns: 172.17.0.1` (dnsmasq on Docker bridge). This lets containers resolve both `*.test` (local) and external domains. dnsmasq forwards non-`.test` queries to `192.168.1.1` (router).
+- A site reaches **its own** domain via `extra_hosts: SITE_DOMAIN:host-gateway` (in the template) → Traefik on the host. WP loopback requests (wp-cron, Site Health, Action Scheduler) depend on this.
+- Every container queries `172.17.0.1` by default (Omarchy's `/etc/docker/daemon.json`), which is systemd-resolved on the Docker bridge (`/etc/systemd/resolved.conf.d/20-docker-dns.conf` from `omarchy-settings`, `DNSStubListenerExtra=172.17.0.1`; ufw allows it via the `allow-docker-dns` rules). Containers follow the host's DNS, VPN included — no `dns:` in site compose files.
+- A `.test` name answered from the host's `/etc/hosts` means `127.0.0.1` — inside a container that's the container itself. A site calling **another** `.test` site needs that domain in its own `extra_hosts` too.
+
+### Why not dnsmasq or `.localhost`
+
+- **dnsmasq** (wildcard `*.test`) needs resolved routing config and must not bind `172.17.0.1:53`, which resolved already holds on Omarchy; forwarding non-`.test` queries to the router would also bypass VPN DNS. Not worth it for a handful of sites.
+- **`.localhost`** resolves with zero config, but curl resolves `*.localhost` to loopback internally, ignoring `/etc/hosts` and `extra_hosts` — WP loopback requests from containers would hit the container instead of Traefik.
 
 ### Troubleshooting
 
-**`.test` domains not resolving (browser shows NS_ERROR_UNKNOWN_HOST):**
-
 ```bash
-# Check dnsmasq is running
-systemctl status dnsmasq
+getent hosts mysite.test     # 127.0.0.1 → name OK; empty → missing /etc/hosts line
+resolvectl query mysite.test # same, through resolved (what browsers use)
 
-# If failed (common after reboot — race with Docker):
-sudo systemctl restart dnsmasq
+# Name OK but the page fails → Traefik / cert side
+sudo docker compose -f ~/WebApps/env-manage/local_infra/compose.yml ps traefik
 
-# Verify .test resolves
-resolvectl query mail.test   # should return 127.0.0.1
+# Inside a site container — should print the host-gateway IP, not 127.0.0.1
+cd ~/WebApps/mysite.test && sudo docker compose exec wordpress getent hosts mysite.test
 ```
 
-**Internet not working:**
+## Firewall (ufw)
+
+Omarchy runs ufw (`default deny incoming`) with ufw-docker. ufw-docker lets **any private-range source** (`10/8`, `172.16/12`, `192.168/16` — your LAN, a café Wi-Fi) reach published container ports, so Traefik publishes `:80`/`:443` only on `127.0.0.1` (browser) and `172.17.0.1` (docker0, for site containers via `host-gateway`) — not `0.0.0.0`. MySQL and the Traefik dashboard stay on `127.0.0.1`.
+
+Check that a site container reaches its own domain through Traefik (WP loopback: wp-cron, Site Health, Action Scheduler):
 
 ```bash
-# Check resolved has upstream DNS
-resolvectl status   # wlan0 should show DNS server (e.g. 192.168.1.1)
-
-# If no DNS on wlan0, restart NM to re-push DHCP DNS
-sudo systemctl restart NetworkManager
-sudo systemctl restart systemd-resolved
+cd ~/WebApps/mysite.test && sudo docker compose exec wordpress curl -sI https://mysite.test | head -1   # HTTP/... 200/301/302
 ```
 
-**Both broken after reboot:**
+If it hangs or is refused, ufw is dropping container → host traffic on `:443` (only DNS is allowed by default). Mirror Omarchy's DNS rule for HTTPS:
 
 ```bash
-# Full recovery — order matters
-sudo systemctl restart dnsmasq          # bind-dynamic tolerates missing docker0
-sudo systemctl restart systemd-resolved  # picks up .test routing
-sudo systemctl restart NetworkManager    # re-pushes DHCP DNS into resolved
+sudo ufw allow in proto tcp from 172.16.0.0/12 to 172.17.0.1 port 443 comment 'allow-docker-traefik'
 ```
 
 ## HTTPS (mkcert)
+
+One-time setup (`certutil` comes from `nss`, already installed on Omarchy):
+
+```bash
+sudo pacman -S mkcert
+mkcert -install        # system trust store + Chromium (Omarchy default browser)
+```
 
 Certs are in `traefik/certs/` (gitignored). To regenerate or add a domain:
 
@@ -170,7 +162,10 @@ cd /tmp && mkcert mysite.test [plus all existing domains...]
 cp *.pem ~/WebApps/env-manage/local_infra/traefik/certs/
 cd ~/WebApps/env-manage/local_infra && sudo docker compose restart traefik
 
-# 6. Start
+# 6. Resolve the domain on the host
+echo '127.0.0.1 mysite.test' | sudo tee -a /etc/hosts
+
+# 7. Start
 cd ~/WebApps/mysite.test && sudo docker compose up -d
 ```
 

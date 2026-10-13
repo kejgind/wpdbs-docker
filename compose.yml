@@ -18,9 +18,14 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--providers.file.directory=/etc/traefik/dynamic"
+    # Not 0.0.0.0: ufw-docker on Omarchy lets any private-range source (LAN, public Wi-Fi)
+    # reach published ports. 172.17.0.1 is docker0 (fixed by Omarchy's daemon.json "bip")
+    # and is what site containers hit via extra_hosts host-gateway.
     ports:
-      - "80:80"
-      - "443:443"
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:443:443"
+      - "172.17.0.1:80:80"
+      - "172.17.0.1:443:443"
       - "127.0.0.1:8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
