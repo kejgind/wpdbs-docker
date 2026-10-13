@@ -39,7 +39,7 @@ DB_CONTAINER=$(grep '^DATABASE_HOST=' "$INFRA/.env" | cut -d= -f2-)
 DB_PASS=$(grep '^DATABASE_ROOT_PASSWORD=' "$INFRA/.env" | cut -d= -f2-)
 mysql_root() { docker exec -i -e MYSQL_PWD="$DB_PASS" "$DB_CONTAINER" mysql -uroot -N "$@"; }
 # The cli image's 128M memory_limit is too small for `core download` (Extractor fatal).
-wp() { (cd "$SITE" && docker compose run --rm -T wp-cli php -d memory_limit=512M /usr/local/bin/wp "$@"); }
+wp() { (cd "$SITE" && docker compose --progress quiet run --rm -T wp-cli php -d memory_limit=512M /usr/local/bin/wp "$@"); }
 
 step "Preflight"
 docker info >/dev/null 2>&1 || die "docker not reachable without sudo (enable Sudoless Docker)"
