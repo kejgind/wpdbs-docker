@@ -155,6 +155,8 @@ Browser CA trust:
 
 ## Adding a New WP Site
 
+Fresh WordPress + WooCommerce store: `.claude/skills/wp-new-store/scripts/new-store.sh <name>.test` (or `/wp-new-store` in Claude Code) does everything below plus DB, core install, translations, WooCommerce and cert update — only the `/etc/hosts` line is left to you. The manual steps are for moving an existing site in:
+
 ```bash
 # 1. Copy template
 cp ~/WebApps/env-manage/local_infra/templates/wp-compose.template.yml ~/WebApps/mysite.test/compose.yml

@@ -1,3 +1,4 @@
 .env
 mysql_data
 traefik/certs/
+.claude/worktrees/
