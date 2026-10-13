@@ -141,7 +141,7 @@ cp "$(mkcert -CAROOT)/rootCA.pem" ~/WebApps/env-manage/local_infra/traefik/certs
 
 Browser CA trust:
 - Chromium: `mkcert -install` (auto)
-- Zen/Firefox: `certutil -A -d "sql:<profile-path>" -t "C,," -n "mkcert" -i "$(mkcert -CAROOT)/rootCA.pem"`
+- Zen/Firefox: `certutil -A -d "sql:<profile-path>" -t "C,," -n "mkcert" -i "$(mkcert -CAROOT)/rootCA.pem"` — required for Zen: `zen-browser-bin` bundles its own NSS (`/opt/zen-browser-bin/libnssckbi.so`), so it ignores the system trust store, and `mkcert -install` doesn't look in `~/.config/zen`. Once per profile; restart Zen afterwards.
 - Find profiles: `find ~/.config/zen ~/.mozilla -name "cert9.db"`
 
 ## Adding a New WP Site
